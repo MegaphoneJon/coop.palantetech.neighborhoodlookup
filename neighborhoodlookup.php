@@ -4,15 +4,48 @@ require_once 'neighborhoodlookup.civix.php';
 
 
 function neighborhoodlookup_civicrm_geocoderFormat($geoProvider, &$values, $xml) {
-  if($geoProvider !== 'Google') {
+  if ($geoProvider !== 'Google') {
     exit;
+  }
+  // Get the field ID for "neighborhood".
+  $result = civicrm_api3('CustomField', 'getsingle', array(
+    'sequential' => 1,
+    'return' => array("id", "custom_group_id"),
+    'custom_group_id' => "Address_Additional_Info",
+    'name' => "Neighborhood",
+  ));
+  $fieldId = $result['id'];
+
+  // Find the name of the array element that corresponds to neighborhood.
+  foreach ($values as $k => $v) {
+    if (strpos($k, "custom_$fieldId") !== false) {
+      $fieldName = $k;
+    }
   }
   foreach ($xml->result->address_component as $test) {
     $type = (string) $test->type[0];
     if ($type == 'neighborhood') {
-      $values['custom_7_1'] = (string) $test->long_name;
-      $values['custom_7_-1'] = (string) $test->long_name;
+      $values[$fieldName] = (string) $test->long_name;
     }
+  }
+}
+
+function neighborhoodlookup_civicrm_check(&$messages) {
+  neighborhoodlookup_googleIsProvider($messages);
+}
+
+function neighborhoodlookup_googleIsProvider(&$messages) {
+  $geoProvider = civicrm_api3('Setting', 'getvalue', array(
+    'name' => "geoProvider",
+  ));
+  if ($geoProvider !== 'Google') {
+    $messages[] = new CRM_Utils_Check_Message(
+      'neighborhoodlookup_geoProvider',
+      ts('You have enabled the Neighborhood Lookup extension, but your geoprovider is not Google.'),
+      ts('Wrong geoProvider'),
+      \Psr\Log\LogLevel::WARNING,
+      'fa-globe'
+    );
   }
 }
 
